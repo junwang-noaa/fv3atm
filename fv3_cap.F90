@@ -1032,6 +1032,14 @@ module fv3gfs_cap_mod
       call ESMF_ClockGet(clock_fv3, currTime=currTime, timeStep=timeStep, rc=rc)
       call ESMF_TimeGet(currTime,          timestring=import_timestr, rc=rc)
       call ESMF_TimeGet(currTime+timestep, timestring=export_timestr, rc=rc)
+
+      if(currTime == startTime)then
+       call state_diagnose(fcstState,     'fcstState start', rc=rc)
+       call state_diagnose(exportState, 'exportState start', rc=rc)
+      else
+       call state_diagnose(fcstState,     'fcstState advance', rc=rc)
+       call state_diagnose(exportState, 'exportState advance', rc=rc)
+      endif
 !
 !-----------------------------------------------------------------------------
 !*** integration loop
@@ -1642,6 +1650,86 @@ module fv3gfs_cap_mod
 
   end subroutine atmos_model_finalize
 
+  subroutine state_diagnose(State, string, rc)
+    ! ----------------------------------------------
+    ! Diagnose status of state
+    ! ----------------------------------------------
+    type(ESMF_State), intent(inout) :: State
+    character(len=*), intent(in), optional :: string
+    integer, intent(out), optional  :: rc
+
+    ! local variables
+    integer                     :: i,j,n
+    integer                     :: itemCount
+    character(len=64) ,pointer  :: itemNameList(:)
+    character(len=64)           :: lstring
+    character(len=256)          :: tmpstr
+
+    type(ESMF_Field)            :: lfield
+    type(ESMF_StateItem_Flag)   :: itemType
+    real(ESMF_KIND_R8), pointer :: dataPtr2d(:,:)
+    real(ESMF_KIND_R8), pointer :: dataPtr3d(:,:)
+    logical                     :: isCreated
+    integer                     :: lrc, dimCount
+    character(len=*),parameter  :: subname='(FV3: state_diagnose)'
+
+    lstring = ''
+    if (present(string)) then
+       lstring = trim(string)
+    endif
+
+    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+    isCreated = ESMF_StateIsCreated(State, rc=lrc)
+    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+
+    if(isCreated)then
+       call ESMF_StateGet(State, itemCount=itemCount, rc=lrc)
+       if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+       allocate(itemNameList(itemCount))
+   
+       call ESMF_StateGet(State, itemNameList=itemNameList, rc=lrc)
+       if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+   
+       do n = 1, itemCount
+          call ESMF_StateGet(State, itemName=trim(itemNameList(n)), itemType=itemType, rc=lrc)
+          if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+          write(tmpstr,'(A,i12)') trim(subname)//' '//trim(lstring)//':'//trim(itemNameList(n))
+          call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
+   
+        if(itemType == ESMF_STATEITEM_FIELD)then
+          call ESMF_StateGet(State, itemName=trim(itemNameList(n)), field=lfield, rc=lrc)
+          if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+   
+          call ESMF_FieldGet(lfield, dimCount=dimcount, rc=lrc)
+          if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+          write(tmpstr,'(A,i12)') trim(subname)//' '//trim(lstring)//':'//trim(itemNameList(n))//'  ',dimcount
+          call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
+   
+          if(dimcount == 2)then
+           call ESMF_FieldGet(lfield, farrayPtr=dataPtr2d, rc=lrc)
+           if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+   
+            write(tmpstr,'(A,3g14.7)') trim(subname)//' '//trim(lstring)//':'//trim(itemNameList(n))//'  ', &
+              minval(dataPtr2d),maxval(dataPtr2d),sum(dataPtr2d)
+            call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
+          else
+           call ESMF_FieldGet(lfield, farrayPtr=dataPtr3d, rc=lrc)
+           if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+   
+            write(tmpstr,'(A,3g14.7)') trim(subname)//' '//trim(lstring)//':'//trim(itemNameList(n))//'  ', &
+              minval(dataPtr3d),maxval(dataPtr3d),sum(dataPtr3d)
+            call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
+          end if
+        end if
+       enddo
+       deallocate(itemNameList)
+    end if
+
+    if (present(rc)) rc = lrc
+    call ESMF_LogWrite(subname//' exit', ESMF_LOGMSG_INFO)
+
+  end subroutine state_diagnose
 !#######################################################################
 !
 !
