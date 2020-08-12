@@ -1037,10 +1037,8 @@ module fv3gfs_cap_mod
       call ESMF_TimeGet(currTime+timestep, timestring=export_timestr, rc=rc)
 
       if(currTime == startTime)then
-       call state_diagnose(fcstState,     'fcstState start', rc=rc)
-       call state_diagnose(exportState, 'exportState start', rc=rc)
+       call state_diagnose(exportState,   'exportState start', rc=rc)
       else
-       call state_diagnose(fcstState,     'fcstState advance', rc=rc)
        call state_diagnose(exportState, 'exportState advance', rc=rc)
       endif
 !
