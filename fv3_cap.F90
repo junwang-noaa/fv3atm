@@ -93,6 +93,7 @@ module fv3gfs_cap_mod
   character(len=160) :: nuopcMsg
   integer            :: timeslice = 0
   integer            :: fcstmype
+  integer            :: dbug = 0
 
 !-----------------------------------------------------------------------
 
@@ -189,7 +190,7 @@ module fv3gfs_cap_mod
 
     character(len=10)     :: value
     character(240)        :: msgString
-
+    logical               :: isPresent, isSet
     character(len=*),parameter  :: subname='(fv3gfs_cap:InitializeP0)'
 
     rc = ESMF_SUCCESS
@@ -210,6 +211,15 @@ module fv3gfs_cap_mod
 
     cplprint_flag = (trim(value)=="true")
     write(msgString,'(A,l6)') trim(subname)//' cplprint_flag = ',cplprint_flag
+    call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO, rc=rc)
+
+    ! Read in cap debug flag
+    call NUOPC_CompAttributeGet(gcomp, name='dbug_flag', value=value, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
+    if (isPresent .and. isSet) then
+     read(value,*) dbug
+    end if
+    write(msgString,'(A,i6)') trim(subname)//' dbug = ',dbug
     call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO, rc=rc)
 
   end subroutine
@@ -545,6 +555,7 @@ module fv3gfs_cap_mod
       rsthour   = CurrTime - StartTime
       first_kdt = nint(rsthour/timeStep) + 1
     endif
+
 !
 !#######################################################################
 ! set up fcst grid component
@@ -1036,11 +1047,6 @@ module fv3gfs_cap_mod
       call ESMF_TimeGet(currTime,          timestring=import_timestr, rc=rc)
       call ESMF_TimeGet(currTime+timestep, timestring=export_timestr, rc=rc)
 
-      if(currTime == startTime)then
-       call state_diagnose(exportState,   'exportState start', rc=rc)
-      else
-       call state_diagnose(exportState, 'exportState advance', rc=rc)
-      endif
 !
 !-----------------------------------------------------------------------------
 !*** integration loop
@@ -1068,6 +1074,9 @@ module fv3gfs_cap_mod
        call Dump_cplFields(gcomp, importState, exportstate, clock_fv3,    &
                            cplprint_flag, 'import', import_timestr)
       endif
+      if(dbug > 0)then
+        call state_diagnose(importState, ': IS', rc=rc)
+      end if
 
       call ESMF_GridCompRun(fcstComp, exportState=fcstState, clock=clock_fv3, &
                             phase=2, userRc=urc, rc=rc)
@@ -1187,6 +1196,9 @@ module fv3gfs_cap_mod
        call Dump_cplFields(gcomp, importState, exportstate, clock_fv3,    &
                            cplprint_flag, 'export', export_timestr) 
     endif
+    if(dbug > 0)then
+      call state_diagnose(exportState, ':ES', rc=rc)
+    end if
 
     if (mype==0) print *,'fv3_cap,end integrate,na=',na,' time=',mpi_wtime()- timeri
 
