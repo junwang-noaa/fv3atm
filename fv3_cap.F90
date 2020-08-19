@@ -63,7 +63,7 @@ module fv3gfs_cap_mod
                                     queryFieldList,   fillExportFields,      &
                                     exportData
   use module_cap_cpl,         only: realizeConnectedCplFields,               &
-                                    clock_cplIntval, Dump_cplFields
+                                    clock_cplIntval, diagnose_cplFields      
 
 
   implicit none
@@ -1071,12 +1071,11 @@ module fv3gfs_cap_mod
 
       if ( cpl ) then
        ! assign import_data called during phase=1
-       call Dump_cplFields(gcomp, importState, exportstate, clock_fv3,    &
-                           cplprint_flag, 'import', import_timestr)
+       if( dbug > 0 .or. cplprint_flag ) then
+        call diagnose_cplFields(gcomp, importState, exportstate, clock_fv3,    &
+                              cplprint_flag, dbug, 'import', import_timestr)
+       endif
       endif
-      if(dbug > 0)then
-        call state_diagnose(gcomp,importState, 'import', ':IS', rc=rc)
-      end if
 
       call ESMF_GridCompRun(fcstComp, exportState=fcstState, clock=clock_fv3, &
                             phase=2, userRc=urc, rc=rc)
@@ -1193,12 +1192,11 @@ module fv3gfs_cap_mod
 !
 !jw for coupled, check clock and dump import and export state
     if ( cpl ) then
-       call Dump_cplFields(gcomp, importState, exportstate, clock_fv3,    &
-                           cplprint_flag, 'export', export_timestr) 
+      if( dbug > 0 .or. cplprint_flag ) then
+       call diagnose_cplFields(gcomp, importState, exportstate, clock_fv3,    &
+                              cplprint_flag, dbug, 'export', export_timestr) 
+     end if
     endif
-    if(dbug > 0)then
-      call state_diagnose(gcomp,exportState, 'export', ':ES', rc=rc)
-    end if
 
     if (mype==0) print *,'fv3_cap,end integrate,na=',na,' time=',mpi_wtime()- timeri
 
@@ -1662,84 +1660,6 @@ module fv3gfs_cap_mod
 
 
   end subroutine atmos_model_finalize
-
-  subroutine state_diagnose(gcomp,State,state_tag,string, rc)
-    ! ----------------------------------------------
-    ! Diagnose status of state
-    ! ----------------------------------------------
-    type(ESMF_GridComp), intent(in) :: gcomp
-    type(ESMF_State), intent(inout) :: State
-    character(len=*), intent(in), optional :: string
-    integer, intent(out), optional  :: rc
-
-    ! local variables
-    integer                       :: i,j,n
-    integer                       :: itemCount
-    character(len=64) ,pointer    :: itemNameList(:)
-    character(len=64)             :: lstring
-    character(len=256)            :: tmpstr
-    character(len=*), intent(in)  :: state_tag !< Import or export.
-!< Import or export.
-
-    type(ESMF_Field)            :: lfield
-    type(ESMF_StateItem_Flag)   :: itemType
-    real(ESMF_KIND_R8), pointer :: dataPtr2d(:,:)
-    real(ESMF_KIND_R8), pointer :: dataPtr3d(:,:)
-    integer                     :: lrc, dimCount
-    character(len=*),parameter  :: subname='(FV3: state_diagnose)'
-
-    lstring = ''
-    if (present(string)) then
-       lstring = trim(string)
-    endif
-
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
-
-    if(trim(state_tag) .eq. 'import')call ESMF_GridCompGet(gcomp, importState=State, rc=rc)
-    if(trim(state_tag) .eq. 'export')call ESMF_GridCompGet(gcomp, exportState=State, rc=rc)
-
-    call ESMF_StateGet(State, itemCount=itemCount, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    allocate(itemNameList(itemCount))
-   
-    call ESMF_StateGet(State, itemNameList=itemNameList, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-   
-    do n = 1, itemCount
-       call ESMF_StateGet(State, itemName=trim(itemNameList(n)), itemType=itemType, rc=lrc)
-       if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-   
-     if(itemType == ESMF_STATEITEM_FIELD)then
-       call ESMF_StateGet(State, itemName=trim(itemNameList(n)), field=lfield, rc=lrc)
-       if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-  
-       call ESMF_FieldGet(lfield, dimCount=dimcount, rc=lrc)
-       if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-       call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
-       
-       if(dimcount == 2)then
-         call ESMF_FieldGet(lfield, farrayPtr=dataPtr2d, rc=lrc)
-         if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-   
-         write(tmpstr,'(A,3g14.7)') trim(subname)//' '//trim(lstring)//':'//trim(itemNameList(n))//'  ', &
-           minval(dataPtr2d),maxval(dataPtr2d),sum(dataPtr2d)
-         call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
-       else
-         call ESMF_FieldGet(lfield, farrayPtr=dataPtr3d, rc=lrc)
-         if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-  
-         write(tmpstr,'(A,3g14.7)') trim(subname)//' '//trim(lstring)//':'//trim(itemNameList(n))//'  ', &
-           minval(dataPtr3d),maxval(dataPtr3d),sum(dataPtr3d)
-         call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=lrc)
-       end if
-     end if
-    enddo
-     deallocate(itemNameList)
-
-    if (present(rc)) rc = lrc
-    call ESMF_LogWrite(subname//' exit', ESMF_LOGMSG_INFO)
-
-  end subroutine state_diagnose
 !#######################################################################
 !
 !
