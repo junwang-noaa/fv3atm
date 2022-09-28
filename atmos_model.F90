@@ -766,7 +766,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    !--- the fields in first output files are not accumulated from the beginning of
    !--- the bucketa, but the restart time.   
    if (mod(sec,int(GFS_Control%fhzero*3600.)) /= 0) then
-     diag_time = Time - real_to_time_type(mod(int((GFS_Control%kdt - 1)*dt_phys/3600.),6)*3600.0)
+     diag_time = Time - real_to_time_type(mod(int((GFS_Control%kdt - 1)*dt_phys/3600.),int(GFS_Control%fhzero))*3600.0)
      if (mpp_pe() == mpp_root_pe()) print *,'in atmos_init,start at non multiple of fhzero'
    endif
    if (Atmos%iau_offset > zero) then
