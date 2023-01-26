@@ -1310,6 +1310,7 @@ if (rc /= ESMF_SUCCESS) write(0,*) 'rc=',rc,__FILE__,__LINE__; if(ESMF_LogFoundE
       integer                    :: unit
       integer,dimension(6)       :: date
       real(kind=8)               :: mpi_wtime, tbeg1
+      character(len=64)          :: timestamp
 !
 !-----------------------------------------------------------------------
 !***********************************************************************
@@ -1321,7 +1322,8 @@ if (rc /= ESMF_SUCCESS) write(0,*) 'rc=',rc,__FILE__,__LINE__; if(ESMF_LogFoundE
       call ESMF_GridCompGet(fcst_comp, localpet=mype, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
 
-      call atmos_model_end (Atmos)
+      timestamp = date_to_string (Atmos%Time)
+      call atmos_model_end (Atmos, timestamp)
 
 !*** write restart file
       if( restart_endfcst ) then
@@ -1329,7 +1331,7 @@ if (rc /= ESMF_SUCCESS) write(0,*) 'rc=',rc,__FILE__,__LINE__; if(ESMF_LogFoundE
                                date(4), date(5), date(6))
         call mpp_set_current_pelist()
         if (mpp_pe() == mpp_root_pe())then
-          open( newunit=unit, file='RESTART/coupler.res' )
+          open( newunit=unit, file='RESTART/'//trim(timestamp)//'.coupler.res' )
           write( unit, '(i6,8x,a)' )calendar_type, &
               '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 

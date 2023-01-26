@@ -1041,6 +1041,7 @@ subroutine atmos_model_end (Atmos)
   use get_stochy_pattern_mod, only: write_stoch_restart_atm
   use update_ca, only: write_ca_restart
   type (atmos_data_type), intent(inout) :: Atmos
+  character(len=*), intent(in) :: timestamp
 !---local variables
   integer :: ierr
 
@@ -1055,19 +1056,18 @@ subroutine atmos_model_end (Atmos)
     endif
 #endif
 
-    call atmosphere_end (Atmos % Time, Atmos%grid, restart_endfcst)
+    call atmosphere_end(Atmos % Time, Atmos%grid, restart_endfcst, timestamp)
 
     if(restart_endfcst) then
       call FV3GFS_restart_write (GFS_data, GFS_restart_var, Atm_block, &
-                                 GFS_control, Atmos%domain)
-!     call write_stoch_restart_atm('RESTART/atm_stoch.res.nc')
+                                 GFS_control, Atmos%domain, timestamp)
     endif
     if (GFS_Control%do_sppt .or. GFS_Control%do_shum .or. GFS_Control%do_skeb .or. &
         GFS_Control%lndp_type > 0  .or. GFS_Control%do_ca .or. GFS_Control%do_spp) then
       if(restart_endfcst) then
-        call write_stoch_restart_atm('RESTART/atm_stoch.res.nc')
+        call write_stoch_restart_atm('RESTART/'//trim(timestamp)//'.atm_stoch.res.nc')
         if (GFS_control%do_ca)then
-          call write_ca_restart()
+          call write_ca_restart(timestamp)
         endif
       endif
       call stochastic_physics_wrapper_end(GFS_control)
