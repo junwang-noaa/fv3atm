@@ -1037,7 +1037,7 @@ subroutine update_atmos_model_state (Atmos, rc)
 !   Derived-type variable that contains fields needed by the flux exchange module.
 ! </INOUT>
 
-subroutine atmos_model_end (Atmos)
+subroutine atmos_model_end (Atmos, timestamp)
   use get_stochy_pattern_mod, only: write_stoch_restart_atm
   use update_ca, only: write_ca_restart
   type (atmos_data_type), intent(inout) :: Atmos
